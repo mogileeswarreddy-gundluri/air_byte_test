@@ -8,7 +8,7 @@ def call(Map config = [:]) {
     def appName = config.appName ?: 'local-test-app'
     def bucketName = config.bucketName ?: 'ff-mogileeswar-20251009-airbyte'
     def s3Path = config.s3Path ?: "jenkins-test/${env.BUILD_NUMBER ?: 'manual'}_record.json"
-    def region = config.region ?: 'us-east-1'
+    def region = config.region ?: 'us-west-2'
     
     echo "Starting S3 upload process..."
     echo "Bucket: ${bucketName}"
