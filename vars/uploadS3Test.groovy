@@ -1,13 +1,4 @@
-@Grab(group='software.amazon.awssdk', module='s3', version='2.20.35')
-@Grab(group='software.amazon.awssdk', module='auth', version='2.20.35')
-@Grab(group='com.fasterxml.jackson.core', module='jackson-databind', version='2.15.2')
-
-import software.amazon.awssdk.services.s3.S3Client
-import software.amazon.awssdk.services.s3.model.PutObjectRequest
-import software.amazon.awssdk.regions.Region
-import software.amazon.awssdk.core.sync.RequestBody
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
+import groovy.json.JsonBuilder
 
 // This function can be called with custom bucket and file, or with no parameters
 def call(Map config = [:]) {
@@ -17,8 +8,7 @@ def call(Map config = [:]) {
     def appName = config.appName ?: 'local-test-app'
     def bucketName = config.bucketName ?: 'ff-mogileeswar-20251009-airbyte'
     def s3Path = config.s3Path ?: "jenkins-test/${env.BUILD_NUMBER ?: 'manual'}_record.json"
-    def jsonFile = config.jsonFile ?: 'record.json'
-    def region = config.region ?: 'US_EAST_1'
+    def region = config.region ?: 'us-east-1'
     
     echo "Starting S3 upload process..."
     echo "Bucket: ${bucketName}"
@@ -35,28 +25,28 @@ def call(Map config = [:]) {
         timestamp : new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX")
     ]
     
-    // Convert to pretty JSON
-    def mapper = new ObjectMapper()
-    mapper.enable(SerializationFeature.INDENT_OUTPUT)
-    def jsonContent = mapper.writeValueAsString(payload)
+    // Convert to pretty JSON using Groovy's built-in JsonBuilder
+    def jsonContent = new JsonBuilder(payload).toPrettyString()
     
     echo "JSON payload created (${jsonContent.length()} bytes)"
     
     // ---------------------------
-    // Upload to S3 directly (no local file)
+    // Upload to S3 using AWS CLI
     // ---------------------------
-    def s3 = S3Client.builder()
-            .region(Region.valueOf(region))
-            .build()
+    // Create a temporary file in workspace
+    def tempFile = "${env.WORKSPACE}/temp_${env.BUILD_NUMBER}_record.json"
+    writeFile file: tempFile, text: jsonContent
     
-    def putRequest = PutObjectRequest.builder()
-            .bucket(bucketName)
-            .key(s3Path)
-            .contentType("application/json")
-            .build()
+    // Upload to S3 using AWS CLI
+    sh """
+        aws s3 cp ${tempFile} s3://${bucketName}/${s3Path} \
+            --region ${region} \
+            --content-type application/json
+    """
     
-    // Upload JSON string directly to S3
-    s3.putObject(putRequest, RequestBody.fromString(jsonContent))
+    // Clean up temp file
+    sh "rm -f ${tempFile}"
+    
     echo "Uploaded JSON to s3://${bucketName}/${s3Path}"
     
     return "s3://${bucketName}/${s3Path}"
