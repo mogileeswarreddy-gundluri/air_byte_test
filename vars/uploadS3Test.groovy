@@ -5,7 +5,7 @@
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.regions.Region
-import java.nio.file.Paths
+import software.amazon.awssdk.core.sync.RequestBody
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
 
@@ -40,12 +40,10 @@ def call(Map config = [:]) {
     mapper.enable(SerializationFeature.INDENT_OUTPUT)
     def jsonContent = mapper.writeValueAsString(payload)
     
-    // Save locally
-    new File(jsonFile).write(jsonContent)
-    echo "JSON payload saved locally to ${jsonFile}"
+    echo "JSON payload created (${jsonContent.length()} bytes)"
     
     // ---------------------------
-    // Upload to S3
+    // Upload to S3 directly (no local file)
     // ---------------------------
     def s3 = S3Client.builder()
             .region(Region.valueOf(region))
@@ -54,9 +52,11 @@ def call(Map config = [:]) {
     def putRequest = PutObjectRequest.builder()
             .bucket(bucketName)
             .key(s3Path)
+            .contentType("application/json")
             .build()
     
-    s3.putObject(putRequest, Paths.get(jsonFile))
+    // Upload JSON string directly to S3
+    s3.putObject(putRequest, RequestBody.fromString(jsonContent))
     echo "Uploaded JSON to s3://${bucketName}/${s3Path}"
     
     return "s3://${bucketName}/${s3Path}"
